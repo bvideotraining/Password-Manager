@@ -1,0 +1,5 @@
+{
+  "name": "SecureVault Password Manager",
+  "description": "A zero-knowledge cloud-based password manager with client-side encryption.",
+  "requestFramePermissions": []
+}
