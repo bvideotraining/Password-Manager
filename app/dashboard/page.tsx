@@ -68,8 +68,11 @@ export default function DashboardPage() {
         score = Math.max(0, score)
         
         setStats({ total, weak, reused, old, score })
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching stats:", error)
+        if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota exceeded')) {
+          // Silent fail or toast
+        }
       } finally {
         setLoading(false)
       }

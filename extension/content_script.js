@@ -107,3 +107,42 @@ function renderSuggestionPopup(credentials, usernameInput, passwordInput, iconEl
 // Run detection periodically to catch dynamically loaded forms
 setInterval(detectLoginForms, 2000);
 detectLoginForms();
+
+// Listen for sync messages from the web app
+window.addEventListener("message", (event) => {
+  // We only accept messages from ourselves
+  if (event.source !== window) return;
+
+  if (event.data.type && (event.data.type === "SECUREVAULT_SYNC_LOGINS")) {
+    chrome.runtime.sendMessage({ action: "syncLogins", logins: event.data.logins }, (response) => {
+      console.log("SecureVault: Logins synced to extension");
+    });
+  }
+});
+
+// Listen for messages from the background script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "newCredentialSaved") {
+    window.postMessage({ type: "SECUREVAULT_NEW_CREDENTIAL", credential: request.credential }, "*");
+  }
+  
+  if (request.action === "fillForm") {
+    const passwordInputs = document.querySelectorAll('input[type="password"]');
+    passwordInputs.forEach(passwordInput => {
+      passwordInput.value = request.password;
+      passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+      
+      // Try to find associated username input
+      const form = passwordInput.closest('form');
+      let usernameInput = null;
+      if (form) {
+        usernameInput = form.querySelector('input[type="text"], input[type="email"], input:not([type="password"])');
+      }
+      
+      if (usernameInput) {
+        usernameInput.value = request.username;
+        usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  }
+});

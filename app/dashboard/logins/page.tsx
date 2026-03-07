@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,9 +12,10 @@ import { Plus, Search, MoreVertical, Copy, Edit, Trash, ExternalLink, Eye, EyeOf
 import { useVaultStore } from "@/store/useStore"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc } from "firebase/firestore"
-import { encryptVaultItem, decryptVaultItem } from "@/lib/encryption"
+import { encryptVaultItem, decryptVaultItem, generatePassword } from "@/lib/encryption"
 import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
+import { RefreshCw } from "lucide-react"
 
 interface LoginItem {
   id: string
@@ -76,9 +77,20 @@ export default function LoginsPage() {
           }
         }
         setLogins(items)
-      } catch (error) {
+        
+        // Sync to extension if installed
+        try {
+          window.postMessage({ type: "SECUREVAULT_SYNC_LOGINS", logins: items }, "*");
+        } catch (e) {
+          console.error("Failed to sync with extension", e);
+        }
+      } catch (error: any) {
         console.error("Error fetching logins:", error)
-        toast({ title: "Error", description: "Failed to load vault items.", variant: "destructive" })
+        if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota exceeded')) {
+          toast({ title: "Quota Exceeded", description: "Firebase free tier daily limit reached. Please try again tomorrow.", variant: "destructive" })
+        } else {
+          toast({ title: "Error", description: "Failed to load vault items.", variant: "destructive" })
+        }
       } finally {
         setLoading(false)
       }
@@ -87,7 +99,7 @@ export default function LoginsPage() {
     fetchLogins()
   }, [user, masterKey, toast])
 
-  const fetchLoginsManual = async () => {
+  const fetchLoginsManual = useCallback(async () => {
     if (!user || !masterKey) return
     setLoading(true)
     try {
@@ -111,13 +123,74 @@ export default function LoginsPage() {
         }
       }
       setLogins(items)
-    } catch (error) {
+      
+      // Sync to extension if installed
+      try {
+        window.postMessage({ type: "SECUREVAULT_SYNC_LOGINS", logins: items }, "*");
+      } catch (e) {
+        console.error("Failed to sync with extension", e);
+      }
+    } catch (error: any) {
       console.error("Error fetching logins:", error)
-      toast({ title: "Error", description: "Failed to load vault items.", variant: "destructive" })
+      if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota exceeded')) {
+        toast({ title: "Quota Exceeded", description: "Firebase free tier daily limit reached. Please try again tomorrow.", variant: "destructive" })
+      } else {
+        toast({ title: "Error", description: "Failed to load vault items.", variant: "destructive" })
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, masterKey, toast]);
+
+  useEffect(() => {
+    const handleExtensionMessage = async (event: MessageEvent) => {
+      if (event.source !== window) return;
+      if (event.data.type === "SECUREVAULT_NEW_CREDENTIAL" && user && masterKey) {
+        const { credential } = event.data;
+        
+        // Check if we already have this login to avoid duplicates
+        const exists = logins.some(l => 
+          l.username === credential.username && 
+          (l.website_url.includes(credential.domain) || l.website_name.toLowerCase() === credential.domain.toLowerCase())
+        );
+        
+        if (exists) return;
+
+        try {
+          const payload = {
+            website_name: credential.domain,
+            website_url: `https://${credential.domain}`,
+            username: credential.username,
+            password: credential.password,
+            notes: "Saved from extension",
+            tags: ["extension"],
+            folder: "",
+            isFavorite: false,
+          }
+
+          const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
+          const now = new Date().toISOString()
+          
+          await addDoc(collection(db, "logins"), {
+            user_id: user.uid,
+            encrypted_payload: ciphertext,
+            iv: iv,
+            created_at: now,
+            updated_at: now,
+            last_used: now,
+          })
+
+          toast({ title: "Synced", description: "New credential from extension saved to vault." })
+          fetchLoginsManual()
+        } catch (error) {
+          console.error("Error syncing back from extension:", error)
+        }
+      }
+    };
+
+    window.addEventListener("message", handleExtensionMessage);
+    return () => window.removeEventListener("message", handleExtensionMessage);
+  }, [user, masterKey, logins, toast, fetchLoginsManual]);
 
   const handleAddLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -244,7 +317,12 @@ export default function LoginsPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                    <div className="flex gap-2">
+                      <Input id="password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required className="flex-1" />
+                      <Button type="button" variant="outline" size="icon" onClick={() => setFormData({...formData, password: generatePassword(16, { upper: true, lower: true, numbers: true, symbols: true })})}>
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="folder">Folder</Label>

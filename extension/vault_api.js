@@ -31,3 +31,29 @@ export async function saveCredential(credential) {
     });
   });
 }
+
+export async function syncLogins(logins) {
+  return new Promise((resolve) => {
+    // Map web app logins to extension format
+    const formattedLogins = logins.map(login => {
+      let domain = login.website_name.toLowerCase();
+      try {
+        if (login.website_url) {
+          const urlStr = login.website_url.startsWith('http') ? login.website_url : `https://${login.website_url}`;
+          domain = new URL(urlStr).hostname;
+        }
+      } catch (e) {
+        // Fallback to website name if URL parsing fails
+      }
+      return {
+        username: login.username,
+        password: login.password,
+        domain: domain
+      };
+    });
+    
+    chrome.storage.local.set({ vault_credentials: formattedLogins }, () => {
+      resolve(true);
+    });
+  });
+}
