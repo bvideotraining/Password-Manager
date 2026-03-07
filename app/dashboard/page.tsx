@@ -2,24 +2,36 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Key, ShieldAlert, Copy, Clock, Activity, RefreshCw, Smartphone } from "lucide-react"
+import { Key, ShieldAlert, Copy, Activity, Smartphone } from "lucide-react"
 import { useEffect, useState } from "react"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useVaultStore } from "@/store/useStore"
 import { decryptVaultItem, calculatePasswordStrength } from "@/lib/encryption"
 import Link from "next/link"
+import { 
+  PieChart, Pie, Cell, ResponsiveContainer, 
+  BarChart, Bar, XAxis, YAxis, Tooltip, 
+  Legend, CartesianGrid 
+} from 'recharts'
 
 export default function DashboardPage() {
   const { user, masterKey } = useVaultStore()
   const [stats, setStats] = useState({
     total: 0,
     weak: 0,
+    fair: 0,
+    strong: 0,
     reused: 0,
     old: 0,
     score: 100,
   })
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     async function fetchStats() {
@@ -31,6 +43,8 @@ export default function DashboardPage() {
         
         let total = 0
         let weak = 0
+        let fair = 0
+        let strong = 0
         let old = 0
         const passwords: string[] = []
         
@@ -42,6 +56,8 @@ export default function DashboardPage() {
             
             const strength = calculatePasswordStrength(decrypted.password)
             if (strength < 50) weak++
+            else if (strength < 80) fair++
+            else strong++
             
             passwords.push(decrypted.password)
             
@@ -63,17 +79,16 @@ export default function DashboardPage() {
         
         // Calculate score
         let score = 100
-        score -= (weak * 5)
-        score -= (reused * 3)
-        score -= (old * 2)
+        if (total > 0) {
+          score -= (weak * 10)
+          score -= (reused * 5)
+          score -= (old * 2)
+        }
         score = Math.max(0, score)
         
-        setStats({ total, weak, reused, old, score })
+        setStats({ total, weak, fair, strong, reused, old, score })
       } catch (error: any) {
         console.error("Error fetching stats:", error)
-        if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota exceeded')) {
-          // Silent fail or toast
-        }
       } finally {
         setLoading(false)
       }
@@ -81,6 +96,19 @@ export default function DashboardPage() {
     
     fetchStats()
   }, [user, masterKey])
+
+  const pieData = [
+    { name: 'Security Score', value: stats.score },
+    { name: 'Risk', value: 100 - stats.score },
+  ]
+
+  const barData = [
+    { name: 'Weak', count: stats.weak, fill: '#ef4444' },
+    { name: 'Fair', count: stats.fair, fill: '#f59e0b' },
+    { name: 'Strong', count: stats.strong, fill: '#10b981' },
+  ]
+
+  const COLORS = ['#10b981', '#1e293b']
 
   return (
     <DashboardLayout>
@@ -145,31 +173,64 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-4">
             <CardHeader>
-              <CardTitle>Security Overview</CardTitle>
+              <CardTitle>Password Strength Distribution</CardTitle>
             </CardHeader>
-            <CardContent className="pl-2">
-              <div className="h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg m-4">
-                Chart visualization will appear here
-              </div>
+            <CardContent className="h-[300px]">
+              {mounted && !loading ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                    <XAxis dataKey="name" stroke="#94a3b8" />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155' }}
+                      itemStyle={{ color: '#f8fafc' }}
+                    />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  Loading charts...
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card className="col-span-3">
             <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
+              <CardTitle>Overall Security</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-8">
-                <div className="flex items-center">
-                  <span className="relative flex h-2 w-2 mr-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Vault Synced</p>
-                    <p className="text-sm text-muted-foreground">Just now</p>
+            <CardContent className="h-[300px] relative">
+              {mounted && !loading ? (
+                <>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-3xl font-bold text-emerald-500">{stats.score}%</span>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Secure</span>
                   </div>
+                </>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  Loading charts...
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>

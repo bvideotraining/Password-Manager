@@ -16,6 +16,7 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const [pin, setPin] = useState("")
   const [confirmPin, setConfirmPin] = useState("")
+  const [accountPassword, setAccountPassword] = useState("")
   const [isSettingPin, setIsSettingPin] = useState(false)
 
   useEffect(() => {
@@ -32,6 +33,10 @@ export default function SettingsPage() {
       toast({ title: "PIN Mismatch", description: "PINs do not match.", variant: "destructive" })
       return
     }
+    if (!accountPassword) {
+      toast({ title: "Password Required", description: "Please enter your account password to enable quick unlock.", variant: "destructive" })
+      return
+    }
     if (!masterKey || !salt) return
 
     try {
@@ -40,9 +45,6 @@ export default function SettingsPage() {
       if (typeof window === 'undefined' || !window.crypto || !window.crypto.subtle) {
         throw new Error("Encryption is not supported in this browser environment.")
       }
-
-      if (!salt) throw new Error("Vault salt is missing.")
-      if (!masterKey) throw new Error("Vault is locked or master key is missing.")
 
       const pinSalt = new Uint8Array(base64ToBuffer(salt))
       const pinKey = await deriveKeyFromPin(pin, pinSalt)
@@ -53,12 +55,23 @@ export default function SettingsPage() {
       // Encrypt exported master key with PIN key
       const encryptedMasterKey = await encryptVaultItem({ key: exportedMasterKey }, pinKey)
       
+      // Encrypt account password with PIN key (for quick login)
+      const encryptedAccountPass = await encryptVaultItem({ password: accountPassword }, pinKey)
+      
       // Store in local storage
       if (!user?.uid) throw new Error("User ID is missing.")
-      localStorage.setItem(`vault_pin_${user.uid}`, JSON.stringify(encryptedMasterKey))
+      
+      const pinData = {
+        ...encryptedMasterKey,
+        encryptedAccountPass,
+        updatedAt: new Date().toISOString()
+      }
+      
+      localStorage.setItem(`vault_pin_${user.uid}`, JSON.stringify(pinData))
       setHasPin(true)
       setPin("")
       setConfirmPin("")
+      setAccountPassword("")
       
       toast({
         title: "PIN Set Successfully",
@@ -162,7 +175,17 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
-                <Button onClick={handleSetPin} disabled={isSettingPin || pin.length !== 6}>
+                <div className="space-y-2">
+                  <Label htmlFor="accountPassword">Account Password (to enable quick login)</Label>
+                  <Input
+                    id="accountPassword"
+                    type="password"
+                    placeholder="Your account password"
+                    value={accountPassword}
+                    onChange={(e) => setAccountPassword(e.target.value)}
+                  />
+                </div>
+                <Button onClick={handleSetPin} disabled={isSettingPin || pin.length !== 6 || !accountPassword}>
                   <Lock className="mr-2 h-4 w-4" /> Enable Quick Unlock
                 </Button>
                 <p className="text-xs text-muted-foreground">

@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { auth, db } from "@/lib/firebase"
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth"
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth"
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from "firebase/firestore"
 import { deriveMasterKey, generateSalt, bufferToBase64, base64ToBuffer, encryptVaultItem, decryptVaultItem, deriveKeyFromPin, importKey } from "@/lib/encryption"
 import { useVaultStore } from "@/store/useStore"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -26,6 +27,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
   const [savedPinUser, setSavedPinUser] = useState<{ uid: string; email: string } | null>(null)
+  const [isForgotPassOpen, setIsForgotPassOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState("")
   
   const router = useRouter()
   const { toast } = useToast()
@@ -65,7 +68,8 @@ export default function LoginPage() {
       const savedPinData = localStorage.getItem(`vault_pin_${savedPinUser.uid}`)
       if (!savedPinData) throw new Error("PIN data not found.")
 
-      const { ciphertext, iv } = JSON.parse(savedPinData)
+      const pinData = JSON.parse(savedPinData)
+      const { ciphertext, iv, encryptedAccountPass } = pinData
       
       // Get user's salt from Firestore to derive the PIN key
       const userDoc = await getDoc(doc(db, "users", savedPinUser.uid))
@@ -77,11 +81,23 @@ export default function LoginPage() {
       // Derive PIN key
       const pinKey = await deriveKeyFromPin(pin, salt)
       
-      // Decrypt the exported master key
+      // 1. Decrypt account password and authenticate if not already
+      if (!auth.currentUser && encryptedAccountPass) {
+        try {
+          const decryptedPass = await decryptVaultItem(encryptedAccountPass.ciphertext, encryptedAccountPass.iv, pinKey)
+          await signInWithEmailAndPassword(auth, savedPinUser.email, decryptedPass.password)
+        } catch (err) {
+          throw new Error("Failed to authenticate with PIN. Please use your password.")
+        }
+      } else if (!auth.currentUser) {
+        throw new Error("Session expired. Please log in with your password first.")
+      }
+      
+      // 2. Decrypt the exported master key
       const decrypted = await decryptVaultItem(ciphertext, iv, pinKey)
       const masterKey = await importKey(decrypted.key)
       
-      // Set in store
+      // 3. Set in store
       setMasterKey(masterKey, userData.salt)
       
       toast({
@@ -94,7 +110,29 @@ export default function LoginPage() {
       console.error("PIN login error:", error)
       toast({
         title: "PIN Unlock Failed",
-        description: "Incorrect PIN or corrupted data.",
+        description: error.message || "Incorrect PIN or corrupted data.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!forgotEmail) return
+    setLoading(true)
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail)
+      toast({
+        title: "Reset Email Sent",
+        description: "Check your inbox for instructions to reset your password.",
+      })
+      setIsForgotPassOpen(false)
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send reset email.",
         variant: "destructive"
       })
     } finally {
@@ -273,7 +311,16 @@ export default function LoginPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Account Password</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="password">Account Password</Label>
+                        <button 
+                          type="button" 
+                          onClick={() => setIsForgotPassOpen(true)}
+                          className="text-xs text-emerald-500 hover:underline"
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
                       <div className="relative">
                         <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input 
@@ -368,7 +415,18 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Account Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Account Password</Label>
+                    {isLogin && (
+                      <button 
+                        type="button" 
+                        onClick={() => setIsForgotPassOpen(true)}
+                        className="text-xs text-emerald-500 hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
@@ -411,6 +469,37 @@ export default function LoginPage() {
           )}
         </Card>
       </motion.div>
+
+      <Dialog open={isForgotPassOpen} onOpenChange={setIsForgotPassOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we&apos;ll send you a link to reset your account password.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleForgotPassword}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email">Email Address</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="m@example.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Sending..." : "Send Reset Link"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
