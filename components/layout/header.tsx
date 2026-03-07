@@ -2,11 +2,11 @@
 
 import { useVaultStore } from "@/store/useStore"
 import { Button } from "@/components/ui/button"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, Menu } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/lib/firebase"
 
-export function Header() {
+export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { user, lockVault, setUser } = useVaultStore()
   const router = useRouter()
 
@@ -23,17 +23,19 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
+    <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
       <div className="flex items-center">
-        {/* Mobile menu trigger can go here */}
+        <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={onMenuClick}>
+          <Menu className="h-5 w-5" />
+        </Button>
       </div>
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+      <div className="flex items-center space-x-2 md:space-x-4">
+        <div className="hidden sm:flex items-center space-x-2 text-sm text-muted-foreground">
           <User className="h-4 w-4" />
-          <span>{user?.email}</span>
+          <span className="max-w-[150px] truncate">{user?.email}</span>
         </div>
         <Button variant="outline" size="sm" onClick={handleLock}>
-          Lock Vault
+          Lock
         </Button>
         <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign Out">
           <LogOut className="h-4 w-4" />

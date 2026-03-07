@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Shield, Key, CreditCard, MapPin, FileText, Settings, Activity, LayoutDashboard, Star } from "lucide-react"
+import { Shield, Key, CreditCard, MapPin, FileText, Settings, Activity, LayoutDashboard, Star, Smartphone } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -12,27 +12,29 @@ const navItems = [
   { name: "Credit Cards", href: "/dashboard/cards", icon: CreditCard },
   { name: "Addresses", href: "/dashboard/addresses", icon: MapPin },
   { name: "Secure Notes", href: "/dashboard/notes", icon: FileText },
+  { name: "Mobile App", href: "/dashboard/mobile", icon: Smartphone },
   { name: "Password Generator", href: "/dashboard/generator", icon: Shield },
   { name: "Security Dashboard", href: "/dashboard/security", icon: Activity },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
-export function Sidebar() {
+export function Sidebar({ onNavItemClick }: { onNavItemClick?: () => void }) {
   const pathname = usePathname()
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card">
+    <div className="flex h-full w-full flex-col border-r bg-card">
       <div className="flex h-16 items-center border-b px-6">
         <Shield className="mr-2 h-6 w-6 text-emerald-500" />
         <span className="font-bold text-lg tracking-tight">SecureVault</span>
       </div>
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (
             <Link
               key={item.name}
               href={item.href}
+              onClick={onNavItemClick}
               className={cn(
                 "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 isActive

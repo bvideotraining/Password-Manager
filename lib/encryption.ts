@@ -86,6 +86,46 @@ export async function decryptVaultItem(ciphertextBase64: string, ivBase64: strin
   }
 }
 
+export async function deriveKeyFromPin(pin: string, salt: Uint8Array): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(pin),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits", "deriveKey"] as KeyUsage[]
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt as BufferSource,
+      iterations: 100000, // Slightly lower for PIN but still secure
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"] as KeyUsage[]
+  );
+}
+
+export async function exportKey(key: CryptoKey): Promise<string> {
+  const exported = await crypto.subtle.exportKey("raw", key);
+  return bufferToBase64(exported);
+}
+
+export async function importKey(keyBase64: string): Promise<CryptoKey> {
+  const buffer = base64ToBuffer(keyBase64);
+  return crypto.subtle.importKey(
+    "raw",
+    buffer,
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"] as KeyUsage[]
+  );
+}
+
 // Utility to convert ArrayBuffer to Base64
 export function bufferToBase64(buffer: ArrayBufferLike): string {
   const bytes = new Uint8Array(buffer);

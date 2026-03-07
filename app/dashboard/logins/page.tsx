@@ -39,6 +39,8 @@ export default function LoginsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingLogin, setEditingLogin] = useState<LoginItem | null>(null)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
 
   // Form State
@@ -77,13 +79,6 @@ export default function LoginsPage() {
           }
         }
         setLogins(items)
-        
-        // Sync to extension if installed
-        try {
-          window.postMessage({ type: "SECUREVAULT_SYNC_LOGINS", logins: items }, "*");
-        } catch (e) {
-          console.error("Failed to sync with extension", e);
-        }
       } catch (error: any) {
         console.error("Error fetching logins:", error)
         if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota exceeded')) {
@@ -123,13 +118,6 @@ export default function LoginsPage() {
         }
       }
       setLogins(items)
-      
-      // Sync to extension if installed
-      try {
-        window.postMessage({ type: "SECUREVAULT_SYNC_LOGINS", logins: items }, "*");
-      } catch (e) {
-        console.error("Failed to sync with extension", e);
-      }
     } catch (error: any) {
       console.error("Error fetching logins:", error)
       if (error?.code === 'resource-exhausted' || error?.message?.includes('Quota exceeded')) {
@@ -141,6 +129,14 @@ export default function LoginsPage() {
       setLoading(false)
     }
   }, [user, masterKey, toast]);
+
+  useEffect(() => {
+    try {
+      window.postMessage({ type: "SECUREVAULT_SYNC_LOGINS", logins: logins }, "*");
+    } catch (e) {
+      console.error("Failed to sync with extension", e);
+    }
+  }, [logins]);
 
   useEffect(() => {
     const handleExtensionMessage = async (event: MessageEvent) => {
@@ -230,6 +226,55 @@ export default function LoginsPage() {
     }
   }
 
+  const handleEditLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !masterKey || !editingLogin) return
+
+    try {
+      const payload = {
+        website_name: formData.website_name,
+        website_url: formData.website_url,
+        username: formData.username,
+        password: formData.password,
+        notes: formData.notes,
+        tags: formData.tags.split(",").map(t => t.trim()).filter(Boolean),
+        folder: formData.folder,
+        isFavorite: editingLogin.isFavorite,
+      }
+
+      const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
+
+      await updateDoc(doc(db, "logins", editingLogin.id), {
+        encrypted_payload: ciphertext,
+        iv: iv,
+        updated_at: new Date().toISOString(),
+      })
+
+      toast({ title: "Success", description: "Login updated successfully." })
+      setIsEditModalOpen(false)
+      setEditingLogin(null)
+      setFormData({ website_name: "", website_url: "", username: "", password: "", notes: "", tags: "", folder: "" })
+      fetchLoginsManual()
+    } catch (error) {
+      console.error("Error updating login:", error)
+      toast({ title: "Error", description: "Failed to update login.", variant: "destructive" })
+    }
+  }
+
+  const openEditModal = (login: LoginItem) => {
+    setEditingLogin(login)
+    setFormData({
+      website_name: login.website_name,
+      website_url: login.website_url,
+      username: login.username,
+      password: login.password || "",
+      notes: login.notes,
+      tags: login.tags.join(", "),
+      folder: login.folder || "",
+    })
+    setIsEditModalOpen(true)
+  }
+
   const toggleFavorite = async (login: LoginItem) => {
     if (!user || !masterKey) return
     try {
@@ -288,58 +333,113 @@ export default function LoginsPage() {
             <h2 className="text-3xl font-bold tracking-tight">Logins</h2>
             <p className="text-muted-foreground">Manage your secure website credentials.</p>
           </div>
-          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" /> Add Login
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Login</DialogTitle>
-                <DialogDescription>
-                  Store a new website credential in your encrypted vault.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddLogin}>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="website_name">Website Name</Label>
-                    <Input id="website_name" value={formData.website_name} onChange={e => setFormData({...formData, website_name: e.target.value})} required placeholder="e.g. Google" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="website_url">URL</Label>
-                    <Input id="website_url" type="url" value={formData.website_url} onChange={e => setFormData({...formData, website_url: e.target.value})} placeholder="https://google.com" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username / Email</Label>
-                    <Input id="username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="flex gap-2">
-                      <Input id="password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required className="flex-1" />
-                      <Button type="button" variant="outline" size="icon" onClick={() => setFormData({...formData, password: generatePassword(16, { upper: true, lower: true, numbers: true, symbols: true })})}>
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => {
+              window.postMessage({ type: "SECUREVAULT_SYNC_LOGINS", logins: logins }, "*");
+              toast({ title: "Sync Triggered", description: "Logins sent to browser extension." });
+            }}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Sync to Extension
+            </Button>
+            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" /> Add Login
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Login</DialogTitle>
+                  <DialogDescription>
+                    Store a new website credential in your encrypted vault.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddLogin}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="website_name">Website Name</Label>
+                      <Input id="website_name" value={formData.website_name} onChange={e => setFormData({...formData, website_name: e.target.value})} required placeholder="e.g. Google" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="website_url">URL</Label>
+                      <Input id="website_url" type="url" value={formData.website_url} onChange={e => setFormData({...formData, website_url: e.target.value})} placeholder="https://google.com" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="username">Username / Email</Label>
+                      <Input id="username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} required />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="password">Password</Label>
+                      <div className="flex gap-2">
+                        <Input id="password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required className="flex-1" />
+                        <Button type="button" variant="outline" size="icon" onClick={() => setFormData({...formData, password: generatePassword(16, { upper: true, lower: true, numbers: true, symbols: true })})}>
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="folder">Folder</Label>
+                      <Input id="folder" value={formData.folder} onChange={e => setFormData({...formData, folder: e.target.value})} placeholder="e.g. Work" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="tags">Tags (comma separated)</Label>
+                      <Input id="tags" value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} placeholder="work, personal" />
                     </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="folder">Folder</Label>
-                    <Input id="folder" value={formData.folder} onChange={e => setFormData({...formData, folder: e.target.value})} placeholder="e.g. Work" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="tags">Tags (comma separated)</Label>
-                    <Input id="tags" value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} placeholder="work, personal" />
+                  <DialogFooter>
+                    <Button type="submit">Save to Vault</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Login</DialogTitle>
+              <DialogDescription>
+                Update your website credential.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEditLogin}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_website_name">Website Name</Label>
+                  <Input id="edit_website_name" value={formData.website_name} onChange={e => setFormData({...formData, website_name: e.target.value})} required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_website_url">URL</Label>
+                  <Input id="edit_website_url" type="url" value={formData.website_url} onChange={e => setFormData({...formData, website_url: e.target.value})} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_username">Username / Email</Label>
+                  <Input id="edit_username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_password">Password</Label>
+                  <div className="flex gap-2">
+                    <Input id="edit_password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required className="flex-1" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => setFormData({...formData, password: generatePassword(16, { upper: true, lower: true, numbers: true, symbols: true })})}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="submit">Save to Vault</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_folder">Folder</Label>
+                  <Input id="edit_folder" value={formData.folder} onChange={e => setFormData({...formData, folder: e.target.value})} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_tags">Tags (comma separated)</Label>
+                  <Input id="edit_tags" value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit">Update Login</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <div className="flex items-center space-x-2">
           <div className="relative flex-1 max-w-sm">
@@ -438,6 +538,9 @@ export default function LoginsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEditModal(login)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toggleFavorite(login)}>
                             <Star className={`mr-2 h-4 w-4 ${login.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} /> 
                             {login.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}

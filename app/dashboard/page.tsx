@@ -2,12 +2,13 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Key, ShieldAlert, Copy, Clock, Activity, RefreshCw } from "lucide-react"
+import { Key, ShieldAlert, Copy, Clock, Activity, RefreshCw, Smartphone } from "lucide-react"
 import { useEffect, useState } from "react"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useVaultStore } from "@/store/useStore"
 import { decryptVaultItem, calculatePasswordStrength } from "@/lib/encryption"
+import Link from "next/link"
 
 export default function DashboardPage() {
   const { user, masterKey } = useVaultStore()
@@ -84,9 +85,22 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Overview of your vault security</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+            <p className="text-muted-foreground">Overview of your vault security</p>
+          </div>
+          <Link href="/dashboard/mobile">
+            <Card className="bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 transition-colors cursor-pointer">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Smartphone className="h-5 w-5 text-emerald-500" />
+                <div className="text-sm">
+                  <p className="font-semibold text-emerald-500">Get Mobile App</p>
+                  <p className="text-xs text-emerald-500/70">Access vault on Android</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

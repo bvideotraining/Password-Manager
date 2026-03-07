@@ -12,16 +12,20 @@ import { useToast } from "@/components/ui/use-toast"
 import { auth, db } from "@/lib/firebase"
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth"
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from "firebase/firestore"
-import { deriveMasterKey, generateSalt, bufferToBase64, base64ToBuffer, encryptVaultItem, decryptVaultItem } from "@/lib/encryption"
+import { deriveMasterKey, generateSalt, bufferToBase64, base64ToBuffer, encryptVaultItem, decryptVaultItem, deriveKeyFromPin, importKey } from "@/lib/encryption"
 import { useVaultStore } from "@/store/useStore"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true)
+  const [loginMethod, setLoginMethod] = useState<"password" | "pin">("password")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [masterPassword, setMasterPassword] = useState("")
+  const [pin, setPin] = useState("")
   const [loading, setLoading] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
+  const [savedPinUser, setSavedPinUser] = useState<{ uid: string; email: string } | null>(null)
   
   const router = useRouter()
   const { toast } = useToast()
@@ -31,8 +35,15 @@ export default function LoginPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUser({ uid: user.uid, email: user.email })
+        // Check if this user has a PIN saved on this device
+        const savedPinData = localStorage.getItem(`vault_pin_${user.uid}`)
+        if (savedPinData) {
+          setSavedPinUser({ uid: user.uid, email: user.email || "" })
+          setLoginMethod("pin")
+        }
       } else {
         setUser(null)
+        setSavedPinUser(null)
       }
       setAuthChecking(false)
     })
@@ -44,6 +55,52 @@ export default function LoginPage() {
       router.push("/dashboard")
     }
   }, [isUnlocked, router])
+
+  const handlePinLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!savedPinUser) return
+    setLoading(true)
+
+    try {
+      const savedPinData = localStorage.getItem(`vault_pin_${savedPinUser.uid}`)
+      if (!savedPinData) throw new Error("PIN data not found.")
+
+      const { ciphertext, iv } = JSON.parse(savedPinData)
+      
+      // Get user's salt from Firestore to derive the PIN key
+      const userDoc = await getDoc(doc(db, "users", savedPinUser.uid))
+      if (!userDoc.exists()) throw new Error("User data not found.")
+      
+      const userData = userDoc.data()
+      const salt = new Uint8Array(base64ToBuffer(userData.salt))
+      
+      // Derive PIN key
+      const pinKey = await deriveKeyFromPin(pin, salt)
+      
+      // Decrypt the exported master key
+      const decrypted = await decryptVaultItem(ciphertext, iv, pinKey)
+      const masterKey = await importKey(decrypted.key)
+      
+      // Set in store
+      setMasterKey(masterKey, userData.salt)
+      
+      toast({
+        title: "Vault Unlocked with PIN",
+        description: "Welcome back.",
+      })
+      
+      router.push("/dashboard")
+    } catch (error: any) {
+      console.error("PIN login error:", error)
+      toast({
+        title: "PIN Unlock Failed",
+        description: "Incorrect PIN or corrupted data.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -187,83 +244,198 @@ export default function LoginPage() {
                 : "Set up your zero-knowledge encrypted vault"}
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleAuth}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="m@example.com" 
-                    className="pl-9"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+
+          {isLogin && savedPinUser ? (
+            <Tabs value={loginMethod} onValueChange={(v) => setLoginMethod(v as "password" | "pin")} className="w-full">
+              <div className="px-6">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="password">Password</TabsTrigger>
+                  <TabsTrigger value="pin">PIN Code</TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent value="password">
+                <form onSubmit={handleAuth}>
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          id="email" 
+                          type="email" 
+                          placeholder="m@example.com" 
+                          className="pl-9"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Account Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          id="password" 
+                          type="password" 
+                          className="pl-9"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="masterPassword">Master Password</Label>
+                      <div className="relative">
+                        <Key className="absolute left-3 top-3 h-4 w-4 text-emerald-500" />
+                        <Input 
+                          id="masterPassword" 
+                          type="password" 
+                          className="pl-9 border-emerald-500/30 focus-visible:ring-emerald-500"
+                          value={masterPassword}
+                          onChange={(e) => setMasterPassword(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex flex-col space-y-4">
+                    <Button type="submit" className="w-full" disabled={loading}>
+                      {loading ? "Processing..." : "Unlock Vault"}
+                    </Button>
+                    <AuthFooter isLogin={isLogin} setIsLogin={setIsLogin} />
+                  </CardFooter>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="pin">
+                <form onSubmit={handlePinLogin}>
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="text-center space-y-2 mb-4">
+                      <p className="text-sm font-medium">{savedPinUser.email}</p>
+                      <p className="text-xs text-muted-foreground">Enter your 6-digit PIN to unlock</p>
+                    </div>
+                    <div className="flex justify-center">
+                      <Input
+                        type="password"
+                        maxLength={6}
+                        className="w-32 text-center text-2xl tracking-[0.5em] font-bold"
+                        placeholder="••••••"
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex flex-col space-y-4">
+                    <Button type="submit" className="w-full" disabled={loading || pin.length !== 6}>
+                      {loading ? "Unlocking..." : "Unlock with PIN"}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      type="button" 
+                      className="text-xs"
+                      onClick={() => {
+                        setSavedPinUser(null)
+                        setLoginMethod("password")
+                      }}
+                    >
+                      Use another account
+                    </Button>
+                  </CardFooter>
+                </form>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <form onSubmit={handleAuth}>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="m@example.com" 
+                      className="pl-9"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Account Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    className="pl-9"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="password">Account Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      className="pl-9"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="masterPassword">Master Password</Label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-3 h-4 w-4 text-emerald-500" />
-                  <Input 
-                    id="masterPassword" 
-                    type="password" 
-                    className="pl-9 border-emerald-500/30 focus-visible:ring-emerald-500"
-                    value={masterPassword}
-                    onChange={(e) => setMasterPassword(e.target.value)}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="masterPassword">Master Password</Label>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-3 h-4 w-4 text-emerald-500" />
+                    <Input 
+                      id="masterPassword" 
+                      type="password" 
+                      className="pl-9 border-emerald-500/30 focus-visible:ring-emerald-500"
+                      value={masterPassword}
+                      onChange={(e) => setMasterPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  {!isLogin && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This password encrypts your data. If you lose it, your data cannot be recovered.
+                    </p>
+                  )}
                 </div>
-                {!isLogin && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This password encrypts your data. If you lose it, your data cannot be recovered.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Processing..." : (isLogin ? "Unlock Vault" : "Initialize Vault")}
-              </Button>
-              <div className="text-center text-sm">
-                <span className="text-muted-foreground">
-                  {isLogin ? "Don't have a vault? " : "Already have a vault? "}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="font-medium text-emerald-500 hover:underline"
-                >
-                  {isLogin ? "Create one" : "Sign in"}
-                </button>
-              </div>
-              <div className="text-center text-sm mt-4 pt-4 border-t border-border/50">
-                <a href="/api/extension/download" className="flex items-center justify-center gap-2 text-muted-foreground hover:text-emerald-500 transition-colors">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                  Download Chrome Extension
-                </a>
-              </div>
-            </CardFooter>
-          </form>
+              </CardContent>
+              <CardFooter className="flex flex-col space-y-4">
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Processing..." : (isLogin ? "Unlock Vault" : "Initialize Vault")}
+                </Button>
+                <AuthFooter isLogin={isLogin} setIsLogin={setIsLogin} />
+              </CardFooter>
+            </form>
+          )}
         </Card>
       </motion.div>
     </div>
+  )
+}
+
+function AuthFooter({ isLogin, setIsLogin }: { isLogin: boolean; setIsLogin: (v: boolean) => void }) {
+  return (
+    <>
+      <div className="text-center text-sm">
+        <span className="text-muted-foreground">
+          {isLogin ? "Don't have a vault? " : "Already have a vault? "}
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsLogin(!isLogin)}
+          className="font-medium text-emerald-500 hover:underline"
+        >
+          {isLogin ? "Create one" : "Sign in"}
+        </button>
+      </div>
+      <div className="text-center text-sm mt-4 pt-4 border-t border-border/50">
+        <a href="/api/extension/download" className="flex items-center justify-center gap-2 text-muted-foreground hover:text-emerald-500 transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Download Chrome Extension
+        </a>
+      </div>
+    </>
   )
 }

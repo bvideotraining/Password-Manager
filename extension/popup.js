@@ -111,9 +111,31 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('syncBtn').addEventListener('click', () => {
-    // Open the web app logins page to trigger sync
-    // We use a hardcoded URL or try to find it from the environment if possible
-    // For this demo, we'll assume the user knows their vault URL or we can try to open the root
-    chrome.tabs.create({ url: 'https://ais-dev-hhbluvqmechum52vds4szj-163451659945.europe-west2.run.app/dashboard/logins' });
+    // Try to find an existing tab with the vault open
+    chrome.tabs.query({}, (tabs) => {
+      // Look for a tab that is already on our app (dev or shared)
+      const vaultTab = tabs.find(t => t.url && (t.url.includes('run.app') && (t.url.includes('dashboard') || t.url.includes('logins'))));
+      
+      if (vaultTab) {
+        // If found, just activate it and refresh it to trigger sync
+        chrome.tabs.update(vaultTab.id, { active: true });
+        chrome.windows.update(vaultTab.windowId, { focused: true });
+        // Refresh to trigger sync
+        chrome.tabs.reload(vaultTab.id);
+        window.close(); // Close popup
+      } else {
+        // If not found, open the SHARED URL which is often more stable for auth
+        const sharedUrl = 'https://ais-pre-hhbluvqmechum52vds4szj-163451659945.europe-west2.run.app/dashboard/logins';
+        
+        // Open the shared URL
+        chrome.tabs.create({ url: sharedUrl });
+        
+        // Show a small hint in the popup
+        const msg = document.getElementById('successMsg');
+        msg.textContent = 'Opening Vault... If you see a 403 error, please open the web app manually by typing the URL in your browser.';
+        msg.style.color = '#dc2626'; // Red for warning
+        msg.style.display = 'block';
+      }
+    });
   });
 });
