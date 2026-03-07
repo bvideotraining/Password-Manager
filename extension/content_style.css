@@ -1,0 +1,52 @@
+.sv-autofill-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #6b7280;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.sv-autofill-icon:hover {
+  color: #10b981;
+}
+
+.sv-popup {
+  position: absolute;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 999999;
+  width: 200px;
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+.sv-popup-title {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sv-popup-item {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.sv-popup-item:hover {
+  background: #f3f4f6;
+}

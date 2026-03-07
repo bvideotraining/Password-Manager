@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Shield, Key, CreditCard, MapPin, FileText, Settings, Activity, LayoutDashboard } from "lucide-react"
+import { Shield, Key, CreditCard, MapPin, FileText, Settings, Activity, LayoutDashboard, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Favorites", href: "/dashboard/favorites", icon: Star },
   { name: "Logins", href: "/dashboard/logins", icon: Key },
   { name: "Credit Cards", href: "/dashboard/cards", icon: CreditCard },
   { name: "Addresses", href: "/dashboard/addresses", icon: MapPin },

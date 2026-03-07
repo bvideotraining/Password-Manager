@@ -8,10 +8,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Plus, Search, MoreVertical, Copy, Trash, CreditCard, Eye, EyeOff } from "lucide-react"
+import { Plus, Search, MoreVertical, Copy, Trash, CreditCard, Eye, EyeOff, Star, Folder } from "lucide-react"
 import { useVaultStore } from "@/store/useStore"
 import { db } from "@/lib/firebase"
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc } from "firebase/firestore"
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc } from "firebase/firestore"
 import { encryptVaultItem, decryptVaultItem } from "@/lib/encryption"
 import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,8 @@ interface CardItem {
   pin?: string
   notes?: string
   tags: string[]
+  folder?: string
+  isFavorite?: boolean
   created_at: string
   updated_at: string
 }
@@ -49,6 +51,7 @@ export default function CardsPage() {
     pin: "",
     notes: "",
     tags: "",
+    folder: "",
   })
 
   useEffect(() => {
@@ -131,6 +134,8 @@ export default function CardsPage() {
         pin: formData.pin,
         notes: formData.notes,
         tags: formData.tags.split(",").map(t => t.trim()).filter(Boolean),
+        folder: formData.folder,
+        isFavorite: false,
       }
 
       const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
@@ -148,12 +153,39 @@ export default function CardsPage() {
       setIsAddModalOpen(false)
       setFormData({ 
         title: "", cardholder_name: "", card_number: "", expiration_date: "", 
-        cvv: "", pin: "", notes: "", tags: "" 
+        cvv: "", pin: "", notes: "", tags: "", folder: "" 
       })
       fetchCardsManual()
     } catch (error) {
       console.error("Error adding card:", error)
       toast({ title: "Error", description: "Failed to save credit card.", variant: "destructive" })
+    }
+  }
+
+  const toggleFavorite = async (card: CardItem) => {
+    if (!user || !masterKey) return
+    try {
+      const payload = {
+        title: card.title,
+        cardholder_name: card.cardholder_name,
+        card_number: card.card_number,
+        expiration_date: card.expiration_date,
+        cvv: card.cvv,
+        pin: card.pin,
+        notes: card.notes,
+        tags: card.tags,
+        folder: card.folder,
+        isFavorite: !card.isFavorite,
+      }
+      const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
+      await updateDoc(doc(db, "cards", card.id), {
+        encrypted_payload: ciphertext,
+        iv: iv,
+        updated_at: new Date().toISOString(),
+      })
+      setCards(cards.map(c => c.id === card.id ? { ...c, isFavorite: !c.isFavorite } : c))
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update favorite status.", variant: "destructive" })
     }
   }
 
@@ -260,6 +292,10 @@ export default function CardsPage() {
                     <Input id="pin" type="password" value={formData.pin} onChange={e => setFormData({...formData, pin: e.target.value})} placeholder="1234" maxLength={6} />
                   </div>
                   <div className="grid gap-2">
+                    <Label htmlFor="folder">Folder</Label>
+                    <Input id="folder" value={formData.folder} onChange={e => setFormData({...formData, folder: e.target.value})} placeholder="e.g. Work" />
+                  </div>
+                  <div className="grid gap-2">
                     <Label htmlFor="tags">Tags (comma separated)</Label>
                     <Input id="tags" value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} placeholder="personal, business" />
                   </div>
@@ -302,7 +338,10 @@ export default function CardsPage() {
                   <div className="flex justify-between items-start">
                     <div className="flex items-center space-x-2">
                       <CreditCard className="h-5 w-5 text-emerald-500" />
-                      <CardTitle className="text-lg">{card.title}</CardTitle>
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <span>{card.title}</span>
+                        {card.isFavorite && <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />}
+                      </CardTitle>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -312,6 +351,10 @@ export default function CardsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => toggleFavorite(card)}>
+                          <Star className={`mr-2 h-4 w-4 ${card.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} /> 
+                          {card.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => copyToClipboard(card.card_number, "Card Number")}>
                           <Copy className="mr-2 h-4 w-4" /> Copy Card Number
                         </DropdownMenuItem>
@@ -360,6 +403,12 @@ export default function CardsPage() {
                 </CardContent>
                 <CardFooter>
                   <div className="flex gap-1 flex-wrap">
+                    {card.folder && (
+                      <Badge variant="outline" className="bg-muted">
+                        <Folder className="mr-1 h-3 w-3" />
+                        {card.folder}
+                      </Badge>
+                    )}
                     {card.tags?.map(tag => (
                       <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                     ))}

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Plus, Search, MoreVertical, Copy, Edit, Trash, ExternalLink, Eye, EyeOff } from "lucide-react"
+import { Plus, Search, MoreVertical, Copy, Edit, Trash, ExternalLink, Eye, EyeOff, Star, Folder } from "lucide-react"
 import { useVaultStore } from "@/store/useStore"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc } from "firebase/firestore"
@@ -24,6 +24,8 @@ interface LoginItem {
   password?: string // Decrypted
   notes: string
   tags: string[]
+  folder?: string
+  isFavorite?: boolean
   created_at: string
   updated_at: string
   last_used: string
@@ -46,6 +48,7 @@ export default function LoginsPage() {
     password: "",
     notes: "",
     tags: "",
+    folder: "",
   })
 
   useEffect(() => {
@@ -128,6 +131,8 @@ export default function LoginsPage() {
         password: formData.password,
         notes: formData.notes,
         tags: formData.tags.split(",").map(t => t.trim()).filter(Boolean),
+        folder: formData.folder,
+        isFavorite: false,
       }
 
       const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
@@ -144,11 +149,36 @@ export default function LoginsPage() {
 
       toast({ title: "Success", description: "Login saved securely." })
       setIsAddModalOpen(false)
-      setFormData({ website_name: "", website_url: "", username: "", password: "", notes: "", tags: "" })
+      setFormData({ website_name: "", website_url: "", username: "", password: "", notes: "", tags: "", folder: "" })
       fetchLoginsManual()
     } catch (error) {
       console.error("Error adding login:", error)
       toast({ title: "Error", description: "Failed to save login.", variant: "destructive" })
+    }
+  }
+
+  const toggleFavorite = async (login: LoginItem) => {
+    if (!user || !masterKey) return
+    try {
+      const payload = {
+        website_name: login.website_name,
+        website_url: login.website_url,
+        username: login.username,
+        password: login.password,
+        notes: login.notes,
+        tags: login.tags,
+        folder: login.folder,
+        isFavorite: !login.isFavorite,
+      }
+      const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
+      await updateDoc(doc(db, "logins", login.id), {
+        encrypted_payload: ciphertext,
+        iv: iv,
+        updated_at: new Date().toISOString(),
+      })
+      setLogins(logins.map(l => l.id === login.id ? { ...l, isFavorite: !l.isFavorite } : l))
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update favorite status.", variant: "destructive" })
     }
   }
 
@@ -217,6 +247,10 @@ export default function LoginsPage() {
                     <Input id="password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
                   </div>
                   <div className="grid gap-2">
+                    <Label htmlFor="folder">Folder</Label>
+                    <Input id="folder" value={formData.folder} onChange={e => setFormData({...formData, folder: e.target.value})} placeholder="e.g. Work" />
+                  </div>
+                  <div className="grid gap-2">
                     <Label htmlFor="tags">Tags (comma separated)</Label>
                     <Input id="tags" value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} placeholder="work, personal" />
                   </div>
@@ -275,7 +309,10 @@ export default function LoginsPage() {
                           {login.website_name.charAt(0)}
                         </div>
                         <div className="flex flex-col">
-                          <span>{login.website_name}</span>
+                          <div className="flex items-center space-x-2">
+                            <span>{login.website_name}</span>
+                            {login.isFavorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
+                          </div>
                           <span className="text-xs text-muted-foreground">{login.website_url}</span>
                         </div>
                       </div>
@@ -303,6 +340,12 @@ export default function LoginsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
+                        {login.folder && (
+                          <Badge variant="outline" className="bg-muted">
+                            <Folder className="mr-1 h-3 w-3" />
+                            {login.folder}
+                          </Badge>
+                        )}
                         {login.tags?.map(tag => (
                           <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                         ))}
@@ -317,6 +360,10 @@ export default function LoginsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => toggleFavorite(login)}>
+                            <Star className={`mr-2 h-4 w-4 ${login.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} /> 
+                            {login.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => window.open(login.website_url, "_blank")}>
                             <ExternalLink className="mr-2 h-4 w-4" /> Open Website
                           </DropdownMenuItem>
