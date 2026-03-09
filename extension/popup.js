@@ -178,16 +178,17 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.tabs.reload(vaultTab.id);
         window.close(); // Close popup
       } else {
-        // If not found, open the SHARED URL which is often more stable for auth
+        // Fallback URLs
+        const devUrl = 'https://ais-dev-hhbluvqmechum52vds4szj-163451659945.europe-west2.run.app/dashboard/logins';
         const sharedUrl = 'https://ais-pre-hhbluvqmechum52vds4szj-163451659945.europe-west2.run.app/dashboard/logins';
         
-        // Open the shared URL
-        chrome.tabs.create({ url: sharedUrl });
+        // Try to open the dev URL first since the user is currently in dev
+        chrome.tabs.create({ url: devUrl });
         
         // Show a small hint in the popup
         const msg = document.getElementById('successMsg');
-        msg.textContent = 'Opening Vault... If you see a 403 error, please open the web app manually by typing the URL in your browser.';
-        msg.style.color = '#dc2626'; // Red for warning
+        msg.textContent = 'Opening Vault...';
+        msg.style.color = '#10b981';
         msg.style.display = 'block';
       }
     });

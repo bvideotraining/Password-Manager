@@ -81,7 +81,8 @@ export async function decryptVaultItem(ciphertextBase64: string, ivBase64: strin
     const decryptedString = dec.decode(decryptedBuffer);
     return JSON.parse(decryptedString);
   } catch (e) {
-    console.error("Decryption failed", e);
+    // We don't log the error here because it's expected when a user enters a wrong password
+    // during the verification step in handleAuth.
     throw new Error("Decryption failed. Invalid key or corrupted data.");
   }
 }

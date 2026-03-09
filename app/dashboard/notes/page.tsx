@@ -66,6 +66,18 @@ export default function NotesPage() {
             })
           } catch (e) {
             console.error("Failed to decrypt note", docSnapshot.id)
+            // Push a placeholder for the failed note so the user can at least see it exists and delete it if needed
+            items.push({
+              id: docSnapshot.id,
+              title: "Locked Note (Decryption Failed)",
+              content: "This note could not be decrypted. It may have been encrypted with a different master password or the data is corrupted.",
+              tags: ["error"],
+              created_at: data.created_at,
+              updated_at: data.updated_at,
+              isFavorite: false,
+              folder: "Error",
+              isLocked: true, // Custom flag for UI
+            } as any)
           }
         }
         setNotes(items)
@@ -100,6 +112,18 @@ export default function NotesPage() {
           })
         } catch (e) {
           console.error("Failed to decrypt note", docSnapshot.id)
+          // Push a placeholder for the failed note so the user can at least see it exists and delete it if needed
+          items.push({
+            id: docSnapshot.id,
+            title: "Locked Note (Decryption Failed)",
+            content: "This note could not be decrypted. It may have been encrypted with a different master password or the data is corrupted.",
+            tags: ["error"],
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            isFavorite: false,
+            folder: "Error",
+            isLocked: true, // Custom flag for UI
+          } as any)
         }
       }
       setNotes(items)
@@ -271,11 +295,11 @@ export default function NotesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredNotes.map((note) => (
-              <Card key={note.id} className="flex flex-col">
+              <Card key={note.id} className={`flex flex-col ${(note as any).isLocked ? 'border-destructive/50 bg-destructive/5' : ''}`}>
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center space-x-2">
-                      <FileText className="h-5 w-5 text-emerald-500" />
+                      <FileText className={`h-5 w-5 ${(note as any).isLocked ? 'text-destructive' : 'text-emerald-500'}`} />
                       <CardTitle className="text-lg flex items-center space-x-2">
                         <span>{note.title}</span>
                         {note.isFavorite && <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />}
@@ -289,11 +313,11 @@ export default function NotesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => toggleFavorite(note)}>
+                        <DropdownMenuItem onClick={() => toggleFavorite(note)} disabled={(note as any).isLocked}>
                           <Star className={`mr-2 h-4 w-4 ${note.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} /> 
                           {note.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => copyToClipboard(note.content)}>
+                        <DropdownMenuItem onClick={() => copyToClipboard(note.content)} disabled={(note as any).isLocked}>
                           <Copy className="mr-2 h-4 w-4" /> Copy Content
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDelete(note.id)} className="text-destructive">
@@ -308,18 +332,20 @@ export default function NotesPage() {
                 </CardHeader>
                 <CardContent className="flex-1">
                   <div className="relative">
-                    <div className={`text-sm text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 p-3 rounded-md ${!visibleNotes[note.id] ? 'blur-sm select-none' : ''}`}>
+                    <div className={`text-sm text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 p-3 rounded-md ${!visibleNotes[note.id] && !(note as any).isLocked ? 'blur-sm select-none' : ''}`}>
                       {note.content}
                     </div>
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
-                      className="absolute top-2 right-2 h-7 opacity-80 hover:opacity-100"
-                      onClick={() => toggleNoteVisibility(note.id)}
-                    >
-                      {visibleNotes[note.id] ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
-                      {visibleNotes[note.id] ? "Hide" : "Reveal"}
-                    </Button>
+                    {!(note as any).isLocked && (
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="absolute top-2 right-2 h-7 opacity-80 hover:opacity-100"
+                        onClick={() => toggleNoteVisibility(note.id)}
+                      >
+                        {visibleNotes[note.id] ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                        {visibleNotes[note.id] ? "Hide" : "Reveal"}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter>
