@@ -7,9 +7,12 @@ import { useVaultStore } from "@/store/useStore"
 import { Download, Upload, Trash2, Smartphone, ShieldCheck, Lock } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useState, useEffect } from "react"
-import { encryptVaultItem, deriveKeyFromPin, exportKey, base64ToBuffer } from "@/lib/encryption"
+import { encryptVaultItem, decryptVaultItem, deriveKeyFromPin, exportKey, base64ToBuffer } from "@/lib/encryption"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { db } from "@/lib/firebase"
+import { collection, query, where, getDocs, addDoc } from "firebase/firestore"
+import { useRef } from "react"
 
 export default function SettingsPage() {
   const { user, masterKey, salt, hasPin, setHasPin } = useVaultStore()
@@ -18,6 +21,9 @@ export default function SettingsPage() {
   const [confirmPin, setConfirmPin] = useState("")
   const [accountPassword, setAccountPassword] = useState("")
   const [isSettingPin, setIsSettingPin] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const savedPinData = localStorage.getItem(`vault_pin_${user?.uid}`)
@@ -95,12 +101,133 @@ export default function SettingsPage() {
     toast({ title: "PIN Removed", description: "Quick unlock has been disabled for this device." })
   }
 
+  const handleExportCSV = async () => {
+    if (!user || !masterKey) return
+    setIsExporting(true)
+    try {
+      const q = query(collection(db, "logins"), where("user_id", "==", user.uid))
+      const querySnapshot = await getDocs(q)
+      const decryptedItems = []
+
+      for (const docSnapshot of querySnapshot.docs) {
+        const data = docSnapshot.data()
+        try {
+          const decrypted = await decryptVaultItem(data.encrypted_payload, data.iv, masterKey)
+          decryptedItems.push({
+            website_name: decrypted.website_name || "",
+            website_url: decrypted.website_url || "",
+            username: decrypted.username || "",
+            password: decrypted.password || "",
+            notes: decrypted.notes || "",
+          })
+        } catch (e) {
+          console.error("Failed to decrypt item", docSnapshot.id)
+        }
+      }
+
+      if (decryptedItems.length === 0) {
+        toast({ title: "No Data", description: "Your vault is empty." })
+        return
+      }
+
+      const headers = ["website_name", "website_url", "username", "password", "notes"]
+      const csvRows = [headers.join(",")]
+
+      decryptedItems.forEach(item => {
+        const row = headers.map(header => {
+          const val = (item as any)[header] || ""
+          return `"${val.toString().replace(/"/g, '""')}"`
+        })
+        csvRows.push(row.join(","))
+      })
+
+      const csvContent = csvRows.join("\n")
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.setAttribute("href", url)
+      link.setAttribute("download", `securevault_export_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({ title: "Export Successful", description: `Exported ${decryptedItems.length} items.` })
+    } catch (error: any) {
+      console.error("Export error:", error)
+      toast({ title: "Export Failed", description: error.message || "An error occurred.", variant: "destructive" })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user || !masterKey) return
+
+    setIsImporting(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string
+        const lines = text.split("\n")
+        const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""))
+        
+        let importCount = 0
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim()
+          if (!line) continue
+
+          // Simple CSV parser
+          const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)
+          if (parts && parts.length >= 3) {
+            const item: any = {}
+            headers.forEach((header, index) => {
+              if (parts[index]) {
+                item[header] = parts[index].replace(/^"|"$/g, "").replace(/""/g, '"')
+              }
+            })
+
+            const payload = {
+              website_name: item.website_name || item.domain || "Imported",
+              website_url: item.website_url || item.domain || "",
+              username: item.username || "",
+              password: item.password || "",
+              notes: item.notes || "Imported from CSV",
+              tags: ["imported"],
+              folder: "",
+              isFavorite: false,
+            }
+
+            const { ciphertext, iv } = await encryptVaultItem(payload, masterKey)
+            const now = new Date().toISOString()
+            
+            await addDoc(collection(db, "logins"), {
+              user_id: user.uid,
+              encrypted_payload: ciphertext,
+              iv: iv,
+              created_at: now,
+              updated_at: now,
+              last_used: now,
+            })
+            importCount++
+          }
+        }
+
+        toast({ title: "Import Successful", description: `Imported ${importCount} items to your vault.` })
+        if (fileInputRef.current) fileInputRef.current.value = ""
+      } catch (error: any) {
+        console.error("Import error:", error)
+        toast({ title: "Import Failed", description: "Failed to parse or save CSV data.", variant: "destructive" })
+      } finally {
+        setIsImporting(false)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const handleExport = () => {
-    toast({
-      title: "Export Started",
-      description: "Your encrypted vault is being prepared for download.",
-    })
-    // In a real app, this would download the encrypted JSON payload
+    handleExportCSV()
   }
 
   return (
@@ -203,11 +330,18 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button variant="outline" className="w-full sm:w-auto" onClick={handleExport}>
-                <Download className="mr-2 h-4 w-4" /> Export Encrypted Vault
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept=".csv"
+                onChange={handleImportCSV}
+              />
+              <Button variant="outline" className="w-full sm:w-auto" onClick={handleExport} disabled={isExporting}>
+                <Download className="mr-2 h-4 w-4" /> {isExporting ? "Exporting..." : "Export Passwords (CSV)"}
               </Button>
-              <Button variant="outline" className="w-full sm:w-auto">
-                <Upload className="mr-2 h-4 w-4" /> Import Passwords (CSV)
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
+                <Upload className="mr-2 h-4 w-4" /> {isImporting ? "Importing..." : "Import Passwords (CSV)"}
               </Button>
             </div>
           </CardContent>

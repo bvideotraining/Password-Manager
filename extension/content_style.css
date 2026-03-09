@@ -50,3 +50,78 @@
 .sv-popup-item:hover {
   background: #f3f4f6;
 }
+
+/* Save Prompt Styles */
+.sv-save-prompt {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 9999999;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: sv-slide-in 0.3s ease-out;
+}
+
+@keyframes sv-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.sv-save-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+}
+
+.sv-save-prompt-body {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.sv-save-prompt-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sv-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sv-btn-primary {
+  background: #10b981;
+  color: white;
+  border: none;
+}
+
+.sv-btn-primary:hover {
+  background: #059669;
+}
+
+.sv-btn-secondary {
+  background: white;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+}
+
+.sv-btn-secondary:hover {
+  background: #f9fafb;
+}

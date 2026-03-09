@@ -25,4 +25,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  if (request.action === 'checkAndPromptSave') {
+    getCredentialsForDomain(request.domain).then(credentials => {
+      const exists = credentials.some(c => c.username === request.username);
+      if (!exists) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          action: 'showSavePrompt',
+          domain: request.domain,
+          username: request.username,
+          password: request.password
+        });
+      }
+    });
+    return true;
+  }
 });

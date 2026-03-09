@@ -20,6 +20,26 @@ export async function getCredentialsForDomain(domain) {
   });
 }
 
+export async function getAllCredentials() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['vault_credentials'], (result) => {
+      resolve(result.vault_credentials || []);
+    });
+  });
+}
+
+export async function saveMultipleCredentials(credentials) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['vault_credentials'], (result) => {
+      const allCreds = result.vault_credentials || [];
+      const updatedCreds = [...allCreds, ...credentials];
+      chrome.storage.local.set({ vault_credentials: updatedCreds }, () => {
+        resolve(true);
+      });
+    });
+  });
+}
+
 export async function saveCredential(credential) {
   return new Promise((resolve) => {
     chrome.storage.local.get(['vault_credentials'], (result) => {

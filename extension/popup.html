@@ -118,15 +118,31 @@
       text-align: center;
       border-top: 1px solid #e5e7eb;
       padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    .sync-link {
-      font-size: 11px;
-      color: #10b981;
+    .sync-btn-main {
+      background: #10b981;
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
       text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
       cursor: pointer;
     }
-    .sync-link:hover {
-      text-decoration: underline;
+    .sync-btn-main:hover {
+      background: #059669;
+    }
+    .csv-actions {
+      display: flex;
+      gap: 8px;
     }
   </style>
 </head>
@@ -137,11 +153,21 @@
   </h2>
   
   <div id="credentialsContainer" class="credential-list" style="display: none;">
-    <label>Credentials for this site</label>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <label style="margin-bottom: 0;">Credentials for this site</label>
+    </div>
     <div id="credentialsList"></div>
   </div>
 
-  <div style="margin-top: 16px;">
+  <div id="allLoginsContainer" class="credential-list" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <label style="margin-bottom: 0;">All Stored Logins</label>
+      <button id="backToSiteBtn" class="action-btn" style="width: auto; font-size: 10px;">Back</button>
+    </div>
+    <div id="allLoginsList"></div>
+  </div>
+
+  <div id="mainActions" style="margin-top: 16px;">
     <label style="font-weight: 600; margin-bottom: 8px; display: block;">Add New</label>
     <div class="form-group">
       <label>Domain</label>
@@ -169,7 +195,20 @@
   </div>
 
   <div class="sync-section">
-    <a id="syncBtn" class="sync-link">Sync with Web App</a>
+    <div style="display: flex; gap: 8px;">
+      <button id="syncBtn" class="sync-btn-main" style="flex: 2;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        Open Vault
+      </button>
+      <button id="viewAllBtn" class="sync-btn-main" style="flex: 1; background: #3b82f6;">
+        View All
+      </button>
+    </div>
+    <div class="csv-actions">
+      <button id="importBtn" class="action-btn" style="flex: 1;">Import CSV</button>
+      <button id="exportBtn" class="action-btn" style="flex: 1;">Export CSV</button>
+    </div>
+    <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
   </div>
 
   <script src="popup.js" type="module"></script>
