@@ -269,7 +269,7 @@ export default function LoginsPage() {
       username: login.username,
       password: login.password || "",
       notes: login.notes,
-      tags: login.tags.join(", "),
+      tags: Array.isArray(login.tags) ? login.tags.join(", ") : "",
       folder: login.folder || "",
     })
     setIsEditModalOpen(true)
@@ -484,14 +484,14 @@ export default function LoginsPage() {
                     <TableCell className="font-medium">
                       <div className="flex items-center space-x-2">
                         <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 font-bold uppercase">
-                          {login.website_name.charAt(0)}
+                          {login.website_name?.charAt(0) || "?"}
                         </div>
                         <div className="flex flex-col">
                           <div className="flex items-center space-x-2">
-                            <span>{login.website_name}</span>
+                            <span>{login.website_name || "Unknown"}</span>
                             {login.isFavorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
                           </div>
-                          <span className="text-xs text-muted-foreground">{login.website_url}</span>
+                          <span className="text-xs text-muted-foreground">{login.website_url || ""}</span>
                         </div>
                       </div>
                     </TableCell>
@@ -524,7 +524,7 @@ export default function LoginsPage() {
                             {login.folder}
                           </Badge>
                         )}
-                        {login.tags?.map(tag => (
+                        {Array.isArray(login.tags) && login.tags.map(tag => (
                           <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                         ))}
                       </div>

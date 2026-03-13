@@ -208,7 +208,7 @@ export default function FavoritesPage() {
                         {item.folder}
                       </Badge>
                     )}
-                    {item.tags?.map(tag => (
+                    {Array.isArray(item.tags) && item.tags.map(tag => (
                       <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                     ))}
                   </div>

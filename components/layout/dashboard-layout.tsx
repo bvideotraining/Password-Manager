@@ -6,20 +6,50 @@ import { useVaultStore } from "@/store/useStore"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
+import { auth } from "@/lib/firebase"
+import { onAuthStateChanged } from "firebase/auth"
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isUnlocked, user } = useVaultStore()
+  const { isUnlocked, user, setUser } = useVaultStore()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   useEffect(() => {
-    if (!user || !isUnlocked) {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({ uid: firebaseUser.uid, email: firebaseUser.email })
+      } else {
+        setUser(null)
+        router.push("/")
+      }
+      setIsCheckingAuth(false)
+    })
+
+    return () => unsubscribe()
+  }, [setUser, router])
+
+  useEffect(() => {
+    if (!isCheckingAuth && (!user || !isUnlocked)) {
       router.push("/")
     }
-  }, [user, isUnlocked, router])
+  }, [user, isUnlocked, router, isCheckingAuth])
 
-  if (!user || !isUnlocked) {
-    return null // or a loading spinner
+  if (isCheckingAuth || !user || !isUnlocked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="h-12 w-12 rounded-full border-4 border-emerald-500 border-t-transparent"
+          />
+          <p className="text-sm text-muted-foreground animate-pulse">
+            {isCheckingAuth ? "Verifying session..." : "Vault is locked. Redirecting..."}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

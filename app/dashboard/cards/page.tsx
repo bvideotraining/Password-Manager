@@ -339,7 +339,7 @@ export default function CardsPage() {
                     <div className="flex items-center space-x-2">
                       <CreditCard className="h-5 w-5 text-emerald-500" />
                       <CardTitle className="text-lg flex items-center space-x-2">
-                        <span>{card.title}</span>
+                        <span>{card.title || "Untitled Card"}</span>
                         {card.isFavorite && <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />}
                       </CardTitle>
                     </div>
@@ -409,7 +409,7 @@ export default function CardsPage() {
                         {card.folder}
                       </Badge>
                     )}
-                    {card.tags?.map(tag => (
+                    {Array.isArray(card.tags) && card.tags.map(tag => (
                       <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                     ))}
                   </div>

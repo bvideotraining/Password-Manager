@@ -378,7 +378,7 @@ export default function AddressesPage() {
                         {address.folder}
                       </Badge>
                     )}
-                    {address.tags?.map(tag => (
+                    {Array.isArray(address.tags) && address.tags.map(tag => (
                       <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                     ))}
                   </div>

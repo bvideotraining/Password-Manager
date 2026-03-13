@@ -356,7 +356,7 @@ export default function NotesPage() {
                         {note.folder}
                       </Badge>
                     )}
-                    {note.tags?.map(tag => (
+                    {Array.isArray(note.tags) && note.tags.map(tag => (
                       <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                     ))}
                   </div>
