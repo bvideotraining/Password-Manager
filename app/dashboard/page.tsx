@@ -2,7 +2,8 @@
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Key, ShieldAlert, Copy, Activity, Smartphone } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Key, ShieldAlert, Copy, Activity, Smartphone, CreditCard, FileText, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -19,6 +20,10 @@ export default function DashboardPage() {
   const { user, masterKey } = useVaultStore()
   const [stats, setStats] = useState({
     total: 0,
+    logins: 0,
+    cards: 0,
+    notes: 0,
+    addresses: 0,
     weak: 0,
     fair: 0,
     strong: 0,
@@ -26,6 +31,7 @@ export default function DashboardPage() {
     old: 0,
     score: 100,
   })
+  const [recentItems, setRecentItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
@@ -38,18 +44,20 @@ export default function DashboardPage() {
       if (!user || !masterKey) return
       
       try {
-        const q = query(collection(db, "logins"), where("user_id", "==", user.uid))
-        const querySnapshot = await getDocs(q)
+        // Fetch Logins
+        const loginsQ = query(collection(db, "logins"), where("user_id", "==", user.uid))
+        const loginsSnap = await getDocs(loginsQ)
         
-        let total = 0
+        let loginsCount = 0
         let weak = 0
         let fair = 0
         let strong = 0
         let old = 0
         const passwords: string[] = []
+        const allItems: any[] = []
         
-        for (const doc of querySnapshot.docs) {
-          total++
+        for (const doc of loginsSnap.docs) {
+          loginsCount++
           const data = doc.data()
           try {
             const decrypted = await decryptVaultItem(data.encrypted_payload, data.iv, masterKey)
@@ -67,26 +75,100 @@ export default function DashboardPage() {
             const diffTime = Math.abs(now.getTime() - createdAt.getTime())
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
             if (diffDays > 90) old++
+
+            allItems.push({
+              id: doc.id,
+              type: 'login',
+              title: decrypted.website_name,
+              subtitle: decrypted.username,
+              date: data.created_at
+            })
             
           } catch (e) {
             console.error("Failed to decrypt item for stats", e)
           }
         }
+
+        // Fetch Cards
+        const cardsQ = query(collection(db, "cards"), where("user_id", "==", user.uid))
+        const cardsSnap = await getDocs(cardsQ)
+        const cardsCount = cardsSnap.size
+        for (const doc of cardsSnap.docs) {
+          const data = doc.data()
+          try {
+            const decrypted = await decryptVaultItem(data.encrypted_payload, data.iv, masterKey)
+            allItems.push({
+              id: doc.id,
+              type: 'card',
+              title: decrypted.title,
+              subtitle: decrypted.cardholder_name,
+              date: data.created_at
+            })
+          } catch (e) {}
+        }
+
+        // Fetch Notes
+        const notesQ = query(collection(db, "notes"), where("user_id", "==", user.uid))
+        const notesSnap = await getDocs(notesQ)
+        const notesCount = notesSnap.size
+        for (const doc of notesSnap.docs) {
+          const data = doc.data()
+          try {
+            const decrypted = await decryptVaultItem(data.encrypted_payload, data.iv, masterKey)
+            allItems.push({
+              id: doc.id,
+              type: 'note',
+              title: decrypted.title,
+              subtitle: "Secure Note",
+              date: data.created_at
+            })
+          } catch (e) {}
+        }
+
+        // Fetch Addresses
+        const addressesQ = query(collection(db, "addresses"), where("user_id", "==", user.uid))
+        const addressesSnap = await getDocs(addressesQ)
+        const addressesCount = addressesSnap.size
+        for (const doc of addressesSnap.docs) {
+          const data = doc.data()
+          try {
+            const decrypted = await decryptVaultItem(data.encrypted_payload, data.iv, masterKey)
+            allItems.push({
+              id: doc.id,
+              type: 'address',
+              title: decrypted.title,
+              subtitle: decrypted.full_name,
+              date: data.created_at
+            })
+          } catch (e) {}
+        }
         
         // Calculate reused
         const uniquePasswords = new Set(passwords)
-        const reused = total - uniquePasswords.size
+        const reused = passwords.length - uniquePasswords.size
         
         // Calculate score
         let score = 100
-        if (total > 0) {
+        if (loginsCount > 0) {
           score -= (weak * 10)
           score -= (reused * 5)
           score -= (old * 2)
         }
         score = Math.max(0, score)
         
-        setStats({ total, weak, fair, strong, reused, old, score })
+        setStats({ 
+          total: loginsCount + cardsCount + notesCount + addressesCount, 
+          logins: loginsCount,
+          cards: cardsCount,
+          notes: notesCount,
+          addresses: addressesCount,
+          weak, fair, strong, reused, old, score 
+        })
+
+        // Sort and set recent items
+        const sortedItems = allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5)
+        setRecentItems(sortedItems)
+
       } catch (error: any) {
         console.error("Error fetching stats:", error)
       } finally {
@@ -134,11 +216,14 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Passwords</CardTitle>
+              <CardTitle className="text-sm font-medium">Vault Items</CardTitle>
               <Key className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? "-" : stats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.logins} logins, {stats.cards} cards
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -148,6 +233,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-emerald-500">{loading ? "-" : `${stats.score}/100`}</div>
+              <p className="text-xs text-muted-foreground">
+                Based on password health
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -157,6 +245,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{loading ? "-" : stats.weak}</div>
+              <p className="text-xs text-muted-foreground">
+                Requires immediate update
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -166,6 +257,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-500">{loading ? "-" : stats.reused}</div>
+              <p className="text-xs text-muted-foreground">
+                Increases credential stuffing risk
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -198,39 +292,37 @@ export default function DashboardPage() {
           </Card>
           <Card className="col-span-3">
             <CardHeader>
-              <CardTitle>Overall Security</CardTitle>
+              <CardTitle>Recently Added</CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px] relative">
-              {mounted && !loading ? (
-                <>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-3xl font-bold text-emerald-500">{stats.score}%</span>
-                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Secure</span>
-                  </div>
-                </>
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  Loading charts...
-                </div>
-              )}
+            <CardContent>
+              <div className="space-y-4">
+                {loading ? (
+                  <div className="text-sm text-muted-foreground">Loading...</div>
+                ) : recentItems.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No items in vault yet.</div>
+                ) : (
+                  recentItems.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
+                        {item.type === 'login' && <Key className="h-4 w-4 text-blue-500" />}
+                        {item.type === 'card' && <CreditCard className="h-4 w-4 text-emerald-500" />}
+                        {item.type === 'note' && <FileText className="h-4 w-4 text-purple-500" />}
+                        {item.type === 'address' && <MapPin className="h-4 w-4 text-orange-500" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {new Date(item.date).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <Button variant="ghost" className="w-full mt-4 text-xs" asChild>
+                <Link href="/dashboard/logins">View all items</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
