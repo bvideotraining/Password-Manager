@@ -321,8 +321,8 @@ export default function LoginsPage() {
   }
 
   const filteredLogins = logins.filter(l => 
-    l.website_name.toLowerCase().includes(search.toLowerCase()) ||
-    l.username.toLowerCase().includes(search.toLowerCase())
+    (l.website_name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (l.username || "").toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -545,7 +545,7 @@ export default function LoginsPage() {
                             <Star className={`mr-2 h-4 w-4 ${login.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} /> 
                             {login.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => window.open(login.website_url, "_blank")}>
+                          <DropdownMenuItem onClick={() => login.website_url && window.open(login.website_url, "_blank")}>
                             <ExternalLink className="mr-2 h-4 w-4" /> Open Website
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => copyToClipboard(login.password || "", "Password")}>

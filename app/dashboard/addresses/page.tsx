@@ -213,10 +213,10 @@ export default function AddressesPage() {
   }
 
   const filteredAddresses = addresses.filter(a => 
-    a.title.toLowerCase().includes(search.toLowerCase()) ||
-    a.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    a.city.toLowerCase().includes(search.toLowerCase()) ||
-    a.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase()))
+    (a.title || "").toLowerCase().includes(search.toLowerCase()) ||
+    (a.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (a.city || "").toLowerCase().includes(search.toLowerCase()) ||
+    (Array.isArray(a.tags) && a.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase())))
   )
 
   return (

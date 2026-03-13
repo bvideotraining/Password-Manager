@@ -230,9 +230,9 @@ export default function CardsPage() {
   }
 
   const filteredCards = cards.filter(c => 
-    c.title.toLowerCase().includes(search.toLowerCase()) ||
-    c.cardholder_name.toLowerCase().includes(search.toLowerCase()) ||
-    c.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase()))
+    (c.title || "").toLowerCase().includes(search.toLowerCase()) ||
+    (c.cardholder_name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (Array.isArray(c.tags) && c.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase())))
   )
 
   return (

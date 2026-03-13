@@ -6,6 +6,51 @@ document.addEventListener('DOMContentLoaded', () => {
   const credentialsContainer = document.getElementById('credentialsContainer');
   const allLoginsContainer = document.getElementById('allLoginsContainer');
   const allLoginsList = document.getElementById('allLoginsList');
+  const loginContainer = document.getElementById('loginContainer');
+  const vaultContainer = document.getElementById('vaultContainer');
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const loginError = document.getElementById('loginError');
+
+  // Check session
+  chrome.storage.local.get(['vault_session'], (result) => {
+    if (result.vault_session) {
+      showVault();
+    } else {
+      showLogin();
+    }
+  });
+
+  function showVault() {
+    loginContainer.style.display = 'none';
+    vaultContainer.style.display = 'block';
+  }
+
+  function showLogin() {
+    loginContainer.style.display = 'flex';
+    vaultContainer.style.display = 'none';
+  }
+
+  loginBtn.addEventListener('click', () => {
+    const user = document.getElementById('loginUsername').value;
+    const pass = document.getElementById('loginPassword').value;
+
+    // Hardcoded for demo, in real app would verify against stored hash
+    if (user === 'admin' && pass === 'admin') {
+      chrome.storage.local.set({ vault_session: true }, () => {
+        showVault();
+        loginError.style.display = 'none';
+      });
+    } else {
+      loginError.style.display = 'block';
+    }
+  });
+
+  logoutBtn.addEventListener('click', () => {
+    chrome.storage.local.remove(['vault_session'], () => {
+      showLogin();
+    });
+  });
 
   // Get current tab domain
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -52,10 +97,27 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="font-size: 10px; color: #6b7280;">${cred.domain}</div>
             </div>
             <div class="pass-row">
-              <div class="pass">••••••••</div>
+              <div class="pass" data-visible="false">••••••••</div>
+              <button class="pass-toggle" title="Toggle Visibility">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
               <button class="action-btn copy-btn" data-pass="${cred.password}">Copy</button>
             </div>
           `;
+          
+          const passEl = item.querySelector('.pass');
+          const toggleBtn = item.querySelector('.pass-toggle');
+          
+          toggleBtn.addEventListener('click', () => {
+            const isVisible = passEl.getAttribute('data-visible') === 'true';
+            if (isVisible) {
+              passEl.textContent = '••••••••';
+              passEl.setAttribute('data-visible', 'false');
+            } else {
+              passEl.textContent = cred.password;
+              passEl.setAttribute('data-visible', 'true');
+            }
+          });
           
           item.querySelector('.copy-btn').addEventListener('click', (e) => {
             const pass = e.target.getAttribute('data-pass');
@@ -86,11 +148,28 @@ document.addEventListener('DOMContentLoaded', () => {
           item.innerHTML = `
             <div class="user">${cred.username}</div>
             <div class="pass-row">
-              <div class="pass">••••••••</div>
+              <div class="pass" data-visible="false">••••••••</div>
+              <button class="pass-toggle" title="Toggle Visibility">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
               <button class="action-btn fill-btn" data-user="${cred.username}" data-pass="${cred.password}">Fill</button>
               <button class="action-btn copy-btn" data-pass="${cred.password}">Copy</button>
             </div>
           `;
+          
+          const passEl = item.querySelector('.pass');
+          const toggleBtn = item.querySelector('.pass-toggle');
+          
+          toggleBtn.addEventListener('click', () => {
+            const isVisible = passEl.getAttribute('data-visible') === 'true';
+            if (isVisible) {
+              passEl.textContent = '••••••••';
+              passEl.setAttribute('data-visible', 'false');
+            } else {
+              passEl.textContent = cred.password;
+              passEl.setAttribute('data-visible', 'true');
+            }
+          });
           
           item.querySelector('.copy-btn').addEventListener('click', (e) => {
             const pass = e.target.getAttribute('data-pass');
@@ -182,8 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const devUrl = 'https://ais-dev-hhbluvqmechum52vds4szj-163451659945.europe-west2.run.app/dashboard/logins';
         const sharedUrl = 'https://ais-pre-hhbluvqmechum52vds4szj-163451659945.europe-west2.run.app/dashboard/logins';
         
-        // Try to open the dev URL first since the user is currently in dev
-        chrome.tabs.create({ url: devUrl });
+        // Use the Shared App URL as it is more stable for external access from the extension
+        chrome.tabs.create({ url: sharedUrl });
         
         // Show a small hint in the popup
         const msg = document.getElementById('successMsg');

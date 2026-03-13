@@ -212,8 +212,8 @@ export default function NotesPage() {
   }
 
   const filteredNotes = notes.filter(n => 
-    n.title.toLowerCase().includes(search.toLowerCase()) ||
-    n.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase()))
+    (n.title || "").toLowerCase().includes(search.toLowerCase()) ||
+    (Array.isArray(n.tags) && n.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase())))
   )
 
   return (

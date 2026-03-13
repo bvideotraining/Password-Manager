@@ -108,6 +108,50 @@
     .action-btn.primary:hover {
       background: #059669;
     }
+    #loginContainer {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      margin-top: 20px;
+    }
+    #vaultContainer {
+      display: none;
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .login-header h3 {
+      margin: 0;
+      color: #111827;
+    }
+    .login-header p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .error-msg {
+      color: #ef4444;
+      font-size: 12px;
+      text-align: center;
+      display: none;
+    }
+    .pass-toggle {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+    }
+    .pass-toggle:hover {
+      color: #111827;
+    }
     .generator-section {
       margin-top: 16px;
       border-top: 1px solid #e5e7eb;
@@ -147,68 +191,91 @@
   </style>
 </head>
 <body>
-  <h2>
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-    SecureVault
-  </h2>
-  
-  <div id="credentialsContainer" class="credential-list" style="display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <label style="margin-bottom: 0;">Credentials for this site</label>
-    </div>
-    <div id="credentialsList"></div>
-  </div>
-
-  <div id="allLoginsContainer" class="credential-list" style="display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <label style="margin-bottom: 0;">All Stored Logins</label>
-      <button id="backToSiteBtn" class="action-btn" style="width: auto; font-size: 10px;">Back</button>
-    </div>
-    <div id="allLoginsList"></div>
-  </div>
-
-  <div id="mainActions" style="margin-top: 16px;">
-    <label style="font-weight: 600; margin-bottom: 8px; display: block;">Add New</label>
-    <div class="form-group">
-      <label>Domain</label>
-      <input type="text" id="domain" readonly>
+  <div id="loginContainer">
+    <div class="login-header">
+      <h3>Unlock Vault</h3>
+      <p>Please enter your extension credentials</p>
     </div>
     <div class="form-group">
       <label>Username</label>
-      <input type="text" id="username" placeholder="username">
+      <input type="text" id="loginUsername" placeholder="Username">
     </div>
     <div class="form-group">
       <label>Password</label>
-      <input type="password" id="password" placeholder="••••••••">
+      <input type="password" id="loginPassword" placeholder="••••••••">
     </div>
-    <button id="saveBtn">Save Credential</button>
-    <div id="successMsg" class="success">Saved successfully!</div>
+    <button id="loginBtn">Login</button>
+    <div id="loginError" class="error-msg">Invalid username or password</div>
+    <div style="font-size: 10px; color: #9ca3af; text-align: center; margin-top: 8px;">
+      Default: admin / admin
+    </div>
   </div>
 
-  <div class="generator-section">
-    <label style="font-weight: 600; margin-bottom: 8px; display: block;">Generate Password</label>
-    <div class="form-group" style="display: flex; gap: 8px;">
-      <input type="text" id="genPassword" readonly style="flex: 1;">
-      <button id="genBtn" class="action-btn" style="width: auto;">New</button>
+  <div id="vaultContainer">
+    <h2>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      SecureVault
+    </h2>
+    
+    <div id="credentialsContainer" class="credential-list" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label style="margin-bottom: 0;">Credentials for this site</label>
+      </div>
+      <div id="credentialsList"></div>
     </div>
-    <button id="copyGenBtn" class="action-btn" style="width: 100%;">Copy Generated</button>
-  </div>
 
-  <div class="sync-section">
-    <div style="display: flex; gap: 8px;">
-      <button id="syncBtn" class="sync-btn-main" style="flex: 2;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-        Open Vault
-      </button>
-      <button id="viewAllBtn" class="sync-btn-main" style="flex: 1; background: #3b82f6;">
-        View All
-      </button>
+    <div id="allLoginsContainer" class="credential-list" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label style="margin-bottom: 0;">All Stored Logins</label>
+        <button id="backToSiteBtn" class="action-btn" style="width: auto; font-size: 10px;">Back</button>
+      </div>
+      <div id="allLoginsList"></div>
     </div>
-    <div class="csv-actions">
-      <button id="importBtn" class="action-btn" style="flex: 1;">Import CSV</button>
-      <button id="exportBtn" class="action-btn" style="flex: 1;">Export CSV</button>
+
+    <div id="mainActions" style="margin-top: 16px;">
+      <label style="font-weight: 600; margin-bottom: 8px; display: block;">Add New</label>
+      <div class="form-group">
+        <label>Domain</label>
+        <input type="text" id="domain" readonly>
+      </div>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="username" placeholder="username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="••••••••">
+      </div>
+      <button id="saveBtn">Save Credential</button>
+      <div id="successMsg" class="success">Saved successfully!</div>
     </div>
-    <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+
+    <div class="generator-section">
+      <label style="font-weight: 600; margin-bottom: 8px; display: block;">Generate Password</label>
+      <div class="form-group" style="display: flex; gap: 8px;">
+        <input type="text" id="genPassword" readonly style="flex: 1;">
+        <button id="genBtn" class="action-btn" style="width: auto;">New</button>
+      </div>
+      <button id="copyGenBtn" class="action-btn" style="width: 100%;">Copy Generated</button>
+    </div>
+
+    <div class="sync-section">
+      <div style="display: flex; gap: 8px;">
+        <button id="syncBtn" class="sync-btn-main" style="flex: 2;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          Open Vault
+        </button>
+        <button id="viewAllBtn" class="sync-btn-main" style="flex: 1; background: #3b82f6;">
+          View All
+        </button>
+      </div>
+      <div class="csv-actions">
+        <button id="importBtn" class="action-btn" style="flex: 1;">Import CSV</button>
+        <button id="exportBtn" class="action-btn" style="flex: 1;">Export CSV</button>
+      </div>
+      <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+      <button id="logoutBtn" class="action-btn" style="margin-top: 8px; width: 100%; border: none; background: none; color: #9ca3af; font-size: 10px;">Logout</button>
+    </div>
   </div>
 
   <script src="popup.js" type="module"></script>

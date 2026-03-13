@@ -79,9 +79,9 @@ export default function DashboardPage() {
             allItems.push({
               id: doc.id,
               type: 'login',
-              title: decrypted.website_name,
-              subtitle: decrypted.username,
-              date: data.created_at
+              title: decrypted.website_name || "Unknown",
+              subtitle: decrypted.username || "No username",
+              date: data.created_at || new Date().toISOString()
             })
             
           } catch (e) {
@@ -100,9 +100,9 @@ export default function DashboardPage() {
             allItems.push({
               id: doc.id,
               type: 'card',
-              title: decrypted.title,
-              subtitle: decrypted.cardholder_name,
-              date: data.created_at
+              title: decrypted.title || "Unknown Card",
+              subtitle: decrypted.cardholder_name || "No name",
+              date: data.created_at || new Date().toISOString()
             })
           } catch (e) {}
         }
@@ -118,9 +118,9 @@ export default function DashboardPage() {
             allItems.push({
               id: doc.id,
               type: 'note',
-              title: decrypted.title,
+              title: decrypted.title || "Untitled Note",
               subtitle: "Secure Note",
-              date: data.created_at
+              date: data.created_at || new Date().toISOString()
             })
           } catch (e) {}
         }
@@ -136,9 +136,9 @@ export default function DashboardPage() {
             allItems.push({
               id: doc.id,
               type: 'address',
-              title: decrypted.title,
-              subtitle: decrypted.full_name,
-              date: data.created_at
+              title: decrypted.title || "Untitled Address",
+              subtitle: decrypted.full_name || "No name",
+              date: data.created_at || new Date().toISOString()
             })
           } catch (e) {}
         }

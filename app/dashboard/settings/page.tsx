@@ -325,6 +325,39 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5 text-blue-500" />
+              Chrome Extension
+            </CardTitle>
+            <CardDescription>Install the SecureVault browser extension for auto-fill and quick access.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-muted/50 p-4 rounded-lg border space-y-3">
+              <h4 className="font-semibold text-sm">How to install:</h4>
+              <ol className="text-sm space-y-2 list-decimal list-inside text-muted-foreground">
+                <li>Download the extension source files from our repository.</li>
+                <li>Open Chrome and navigate to <code className="bg-muted px-1 rounded">chrome://extensions</code>.</li>
+                <li>Enable <strong>Developer mode</strong> in the top right corner.</li>
+                <li>Click <strong>Load unpacked</strong> and select the <code className="bg-muted px-1 rounded">extension</code> folder.</li>
+                <li>Pin the SecureVault icon to your toolbar for easy access.</li>
+              </ol>
+              <div className="pt-2">
+                <Button className="w-full sm:w-auto" variant="default" onClick={() => {
+                  toast({ title: "Coming Soon", description: "Direct download will be available once the extension is packaged." })
+                }}>
+                  <Download className="mr-2 h-4 w-4" /> Download Extension (.zip)
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-sm">
+              <ShieldCheck className="h-4 w-4" />
+              <span>The extension uses zero-knowledge encryption to keep your data safe.</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Data Management</CardTitle>
             <CardDescription>Import or export your encrypted vault data.</CardDescription>
           </CardHeader>
